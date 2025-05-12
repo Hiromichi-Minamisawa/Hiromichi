@@ -1,135 +1,118 @@
-const fastify = require("fastify")();
 const path = require("path");
+const fastify = require("fastify")();
+const websocketPlugin = require("@fastify/websocket");
 const fastifyStatic = require("@fastify/static");
-const fastifyWebsocket = require("@fastify/websocket");
 
-fastify.register(fastifyWebsocket);
-
-// クライアント管理用セット
-const clients = new Set();
-
+const answers = [];
 let currentQuestion = null;
-let answers = [];
+let currentOptions = [];
+let correctAnswerIndex = null;
+let clients = new Set();
 
-// WebSocket 接続
-fastify.get("/ws", { websocket: true }, (connection, req) => {
-  clients.add(connection);
+fastify.register(websocketPlugin);
 
-  connection.socket.on("message", (message) => {
-    try {
-      const data = JSON.parse(message);
-
-      if (data.type === "answer") {
-        answers.push({
-          user: data.user,
-          answer: data.answer,
-          time: data.time
-        });
-      }
-    } catch (e) {
-      console.error("❌ メッセージ解析エラー:", e);
-    }
-  });
-
-  connection.socket.on("close", () => {
-    clients.delete(connection);
-  });
-
-  // 接続確認メッセージ送信
-  connection.socket.send(JSON.stringify({ type: "connected", message: "WebSocket接続OK" }));
-});
-
-// 静的ファイル（publicディレクトリを公開）
 fastify.register(fastifyStatic, {
   root: path.join(__dirname, "public"),
+  prefix: "/",
 });
 
-// 管理者が問題を送信するルート
-fastify.post("/send-question", async (request, reply) => {
-  const { question, options, correctAnswer } = request.body;
+fastify.register(async function (fastify) {
+  fastify.get("/ws", { websocket: true }, (connection /* WebSocket */, req) => {
+    clients.add(connection);
+    connection.send(JSON.stringify({ type: "connected", message: "接続完了" }));
 
-  currentQuestion = {
-    question,
-    options,
-    correctAnswer
-  };
+    connection.on("message", (message) => {
+      try {
+        const data = JSON.parse(message.toString());
 
-  answers = [];
+        if (data.type === "answer") {
+          answers.push({
+            user: data.user,
+            answer: data.answer,
+            time: data.time,
+          });
+        }
+      } catch (err) {
+        console.error("メッセージ処理エラー:", err);
+      }
+    });
 
-  const payload = {
+    connection.on("close", () => {
+      clients.delete(connection);
+    });
+  });
+});
+
+fastify.post("/send-question", async (req, reply) => {
+  const { question, options, answer } = req.body;
+
+  currentQuestion = question;
+  currentOptions = options;
+  correctAnswerIndex = answer;
+  answers.length = 0; // reset
+
+  const payload = JSON.stringify({
     type: "question",
     question,
-    options
-  };
+    options,
+  });
 
-  // クライアント全員に問題を送信
-  clients.forEach(client => {
-    if (client.socket.readyState === 1) {
-      client.socket.send(JSON.stringify(payload));
+  clients.forEach((ws) => {
+    try {
+      ws.send(payload);
+    } catch (e) {
+      console.error("送信エラー:", e);
     }
   });
 
-  reply.send({ status: "sent" });
+  reply.send({ status: "ok" });
 });
 
-// 結果集計
-fastify.get("/results", async (request, reply) => {
-  if (!currentQuestion) {
-    return reply.send({ error: "問題が送信されていません。" });
+fastify.get("/results", async (req, reply) => {
+  const result = summarizeResults();
+  reply.send(result);
+});
+
+function summarizeResults() {
+  const userMap = new Map();
+
+  for (const ans of answers) {
+    if (!userMap.has(ans.user)) {
+      userMap.set(ans.user, { correct: 0, totalTime: 0 });
+    }
+
+    if (ans.answer === correctAnswerIndex) {
+      const startTime = answers[0]?.time || ans.time;
+      const answerTime = ans.time - startTime;
+
+      const userData = userMap.get(ans.user);
+      userData.correct += 1;
+      userData.totalTime += answerTime;
+    }
   }
 
-  const result = {};
+  const results = Array.from(userMap.entries()).map(([user, data]) => ({
+    user,
+    correct: data.correct,
+    totalTime: data.totalTime,
+  }));
 
-  for (const entry of answers) {
-    const { user, answer, time } = entry;
-
-    if (!result[user]) {
-      result[user] = {
-        correctCount: 0,
-        totalTime: 0
-      };
+  results.sort((a, b) => {
+    if (b.correct !== a.correct) {
+      return b.correct - a.correct;
+    } else {
+      return a.totalTime - b.totalTime;
     }
-
-    if (answer === currentQuestion.correctAnswer) {
-      result[user].correctCount += 1;
-      result[user].totalTime += time;
-    }
-  }
-
-  // ソート（正解数 → 合計時間）
-  const sorted = Object.entries(result).sort((a, b) => {
-    if (b[1].correctCount !== a[1].correctCount) {
-      return b[1].correctCount - a[1].correctCount;
-    }
-    return a[1].totalTime - b[1].totalTime;
   });
 
-  reply.send({
-    question: currentQuestion.question,
-    correctAnswer: currentQuestion.options[currentQuestion.correctAnswer],
-    answers,
-    ranking: sorted
-  });
-});
+  return results;
+}
 
-// JSONボディのパース
-fastify.addContentTypeParser('application/json', { parseAs: 'string' }, function (req, body, done) {
-  try {
-    const json = JSON.parse(body);
-    done(null, json);
-  } catch (err) {
-    err.statusCode = 400;
-    done(err, undefined);
-  }
-});
-
-// サーバー起動
-const port = process.env.PORT || 3000;
-fastify.listen({ port, host: '0.0.0.0' }, (err, address) => {
+fastify.listen({ port: process.env.PORT || 3000, host: "0.0.0.0" }, (err, address) => {
   if (err) {
     console.error(err);
     process.exit(1);
   }
-  console.log(`🚀 サーバー起動中: ${address}`);
+  console.log(`🚀 サーバー起動: ${address}`);
 });
 
