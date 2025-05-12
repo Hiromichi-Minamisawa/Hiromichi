@@ -1,35 +1,33 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>結果表示</title>
+  <meta charset="UTF-8" />
+  <title>集計結果</title>
 </head>
 <body>
-  <h2>解答結果</h2>
-  <button onclick="loadResults()">結果を表示</button>
-  <ul id="result-list"></ul>
+  <h1>集計結果</h1>
+  <table border="1">
+    <thead>
+      <tr><th>名前</th><th>正解数</th><th>合計時間(ms)</th></tr>
+    </thead>
+    <tbody id="results"></tbody>
+  </table>
 
   <script>
     async function loadResults() {
-      const res = await fetch("/results");
+      const res = await fetch("/answers");
       const data = await res.json();
+      const tbody = document.getElementById("results");
+      tbody.innerHTML = "";
 
-      const list = document.getElementById("result-list");
-      list.innerHTML = "";
-
-      data.sort((a, b) => {
-        if (a.correct === b.correct) {
-          return a.timestamp - b.timestamp;
-        }
-        return b.correct - a.correct;
-      });
-
-      data.forEach(entry => {
-        const li = document.createElement("li");
-        li.textContent = `${entry.username} さん - 解答: ${entry.answer} - ${entry.correct ? "✅" : "❌"}`;
-        list.appendChild(li);
+      data.forEach(row => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${row.user}</td><td>${row.correct}</td><td>${row.totalTime}</td>`;
+        tbody.appendChild(tr);
       });
     }
+
+    setInterval(loadResults, 2000);
   </script>
 </body>
 </html>
