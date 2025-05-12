@@ -1,35 +1,47 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>クイズ参加画面</title>
 </head>
 <body>
   <h1>クイズ参加画面</h1>
-  <div id="question">問題を待っています...</div>
-  <input type="text" id="answer" placeholder="答えを入力" />
-  <button onclick="sendAnswer()">送信</button>
+  <div id="question">ここに問題が表示されます</div>
+  <input id="name" type="text" placeholder="名前を入力" />
+  <input id="answer" type="text" placeholder="解答を入力" />
+  <button id="submit">送信</button>
 
   <script>
-    const ws = new WebSocket(`wss://${location.host}/ws`);
-    let currentQuestionTime = null;
+    const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+    const socket = new WebSocket(`${protocol}://${location.host}/ws`);
 
-    ws.onmessage = (event) => {
+    socket.addEventListener('open', () => {
+      console.log('✅ WebSocket接続完了');
+    });
+
+    socket.addEventListener('message', (event) => {
       const data = JSON.parse(event.data);
-      if (data.type === "question") {
-        document.getElementById("question").textContent = data.question;
-        currentQuestionTime = Date.now();
+      if (data.type === 'question') {
+        document.getElementById('question').textContent = data.question;
       }
-    };
+    });
 
-    function sendAnswer() {
-      const answer = document.getElementById("answer").value;
-      const time = Date.now() - currentQuestionTime;
-      const user = prompt("あなたの名前を入力してください");
+    document.getElementById('submit').addEventListener('click', () => {
+      const name = document.getElementById('name').value.trim();
+      const answer = document.getElementById('answer').value.trim();
+      if (!name || !answer) return alert('名前と解答を入力してください');
 
-      ws.send(JSON.stringify({ type: "answer", user, answer, time }));
-    }
+      const payload = {
+        type: 'answer',
+        name: name,
+        answer: answer,
+        correct: false, // 正誤判定は後で行う（ここでは仮で false）
+        time: 0 // 解答時間も後で実装予定
+      };
+
+      socket.send(JSON.stringify(payload));
+      document.getElementById('answer').value = '';
+    });
   </script>
 </body>
 </html>
-
