@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>クイズ解答者ページ</title>
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/style.css" />
   <style>
     li {
       cursor: pointer;
@@ -25,16 +25,16 @@
   </div>
 
   <script>
-    // 名前入力（再読み込み時にも残せるようlocalStorageを利用可能）
+    // 名前入力
     let username = localStorage.getItem("username");
     while (!username) {
       username = prompt("名前を入力してください:");
       if (username) localStorage.setItem("username", username);
     }
 
-    // WebSocket接続先を動的に切り替え
+    // WebSocket 接続
     const protocol = location.protocol === "https:" ? "wss" : "ws";
-    const socket = new WebSocket(`wss://${location.host}/ws`);
+    const socket = new WebSocket(`${protocol}://${location.host}/ws`);
 
     socket.addEventListener("open", () => {
       console.log("✅ サーバーと接続しました");
@@ -42,15 +42,16 @@
 
     socket.addEventListener("message", (event) => {
       const data = JSON.parse(event.data);
-      
-       if (data.type === 'connected') {
-      console.log('🟢 接続確認:', data.message);
-    }
-      
+
+      if (data.type === 'connected') {
+        console.log('🟢 接続確認:', data.message);
+      }
+
       if (data.type === "question") {
         document.getElementById("question").textContent = data.question;
         const optionsList = document.getElementById("options");
         optionsList.innerHTML = "";
+
         data.options.forEach((option, index) => {
           const li = document.createElement("li");
           li.textContent = option;
@@ -79,6 +80,7 @@
   </script>
 </body>
 </html>
+
 
 
 
