@@ -1,26 +1,24 @@
 {
-  "name": "glitch-hello-node",
-  "version": "0.1.0",
-  "description": "A basic quiz system",
+  "name": "quiz-system",
+  "version": "1.0.0",
+  "description": "オールスター感謝祭風のクイズシステム",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.17.1",
-    "fastify": "3.29.0",
-    "fastify-websocket": "^2.0.0",
-    "fastify-static": "^4.0.0"
+    "fastify": "^3.29.0",
+    "fastify-static": "^4.0.0",
+    "fastify-websocket": "^2.0.0"
   },
   "engines": {
-    "node": "14.x"
-  },
-  "repository": {
-    "url": "https://glitch.com/edit/#!/glitch-hello-node"
+    "node": ">=14.0.0"
   },
   "license": "MIT",
   "keywords": [
-    "node",
-    "glitch"
+    "quiz",
+    "websocket",
+    "fastify"
   ]
 }
+
