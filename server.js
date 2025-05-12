@@ -14,13 +14,13 @@ fastify.register(websocket);
 let currentQuestion = null;
 let currentOptions = [];
 let correctAnswer = null;
-let answers = {}; // clientId: { answer, correct, timestamp, username }
+let answers = {};
 
+// WebSocketエンドポイント
 fastify.get('/ws', { websocket: true }, (connection, req) => {
-  const clientId = req.headers['sec-websocket-key'];
+  const clientId = req.headers['sec-websocket-key'] || Math.random().toString(36).substring(2);
   console.log(`🟢 クライアント接続: ${clientId}`);
 
-  // 接続確認
   connection.socket.send(JSON.stringify({
     type: 'connected',
     message: '接続成功'
@@ -30,6 +30,7 @@ fastify.get('/ws', { websocket: true }, (connection, req) => {
     try {
       const data = JSON.parse(message.toString());
 
+      // 解答受信
       if (data.type === 'answer' && data.answer !== undefined) {
         const now = Date.now();
         const isCorrect = Number(data.answer) === Number(correctAnswer);
@@ -44,10 +45,11 @@ fastify.get('/ws', { websocket: true }, (connection, req) => {
         console.log(`✅ 回答受信: ${clientId} - ${data.answer} (${isCorrect ? '正解' : '不正解'})`);
       }
 
+      // 問題送信
       if (data.type === 'question' && data.question && Array.isArray(data.options)) {
         currentQuestion = data.question;
         currentOptions = data.options;
-        correctAnswer = data.answer;
+        correctAnswer = Number(data.answer);
         answers = {};
 
         console.log('📣 問題配信:', currentQuestion);
@@ -68,12 +70,12 @@ fastify.get('/ws', { websocket: true }, (connection, req) => {
   });
 });
 
-// 管理画面からの問題送信（HTTP経由）
+// 管理者用：fetchで問題送信
 fastify.post('/send-question', async (req, reply) => {
   const body = await req.body;
   const { question, options, answer } = body;
 
-  if (!question || !Array.isArray(options) || options.length === 0 || answer === undefined) {
+  if (!question || !Array.isArray(options) || answer === undefined) {
     return reply.status(400).send({ error: '不正なデータ' });
   }
 
@@ -97,7 +99,7 @@ fastify.post('/send-question', async (req, reply) => {
   return { success: true };
 });
 
-// 結果取得（管理者用）
+// 結果集計用
 fastify.get('/results', async (req, reply) => {
   const results = Object.entries(answers).map(([clientId, data]) => ({
     clientId,
@@ -117,6 +119,7 @@ fastify.listen({ port: process.env.PORT || 3000, host: '0.0.0.0' }, err => {
   }
   console.log('🚀 サーバーが起動しました');
 });
+
 
 
 
