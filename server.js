@@ -1,117 +1,135 @@
-const fastify = require('fastify')({ logger: true });
-const path = require('path');
-const fastifyStatic = require('@fastify/static');
-const websocket = require('@fastify/websocket');
+const fastify = require("fastify")();
+const path = require("path");
+const fastifyStatic = require("@fastify/static");
+const fastifyWebsocket = require("@fastify/websocket");
 
-fastify.register(fastifyStatic, {
-  root: path.join(__dirname, 'public'),
-  prefix: '/',
-});
+fastify.register(fastifyWebsocket);
 
-fastify.register(websocket);
+// クライアント管理用セット
+const clients = new Set();
 
-// 状態変数
 let currentQuestion = null;
-let currentOptions = [];
-let correctAnswer = null;
-let answers = {}; // { clientId: { answer, correct, timestamp, username } }
+let answers = [];
 
-fastify.get('/ws', { websocket: true }, (connection, req) => {
-  const clientId = req.headers['sec-websocket-key'];
+// WebSocket 接続
+fastify.get("/ws", { websocket: true }, (connection, req) => {
+  clients.add(connection);
 
-  console.log(`🟢 クライアント接続: ${clientId}`);
-
-  connection.socket.send(JSON.stringify({
-    type: 'connected',
-    message: '接続成功',
-  }));
-
-  connection.socket.on('message', message => {
+  connection.socket.on("message", (message) => {
     try {
-      const data = JSON.parse(message.toString());
+      const data = JSON.parse(message);
 
-      if (data.type === 'answer' && data.answer !== undefined) {
-        const now = Date.now();
-        const isCorrect = Number(data.answer) === Number(correctAnswer);
-
-        answers[clientId] = {
+      if (data.type === "answer") {
+        answers.push({
+          user: data.user,
           answer: data.answer,
-          correct: isCorrect,
-          timestamp: now,
-          username: data.user || '匿名'
-        };
-
-        console.log(`✅ 回答受信: ${clientId} - ${data.answer} (${isCorrect ? '正解' : '不正解'})`);
-      }
-
-      if (data.type === 'question' && data.question && Array.isArray(data.options)) {
-        currentQuestion = data.question;
-        currentOptions = data.options;
-        correctAnswer = data.answer;
-        answers = {};
-
-        console.log('📣 問題配信:', currentQuestion);
-
-        fastify.websocketServer.clients.forEach(client => {
-          if (client.readyState === 1) {
-            client.send(JSON.stringify({
-              type: 'question',
-              question: currentQuestion,
-              options: currentOptions
-            }));
-          }
+          time: data.time
         });
       }
-    } catch (err) {
-      console.error('❌ メッセージ処理エラー:', err);
+    } catch (e) {
+      console.error("❌ メッセージ解析エラー:", e);
     }
   });
+
+  connection.socket.on("close", () => {
+    clients.delete(connection);
+  });
+
+  // 接続確認メッセージ送信
+  connection.socket.send(JSON.stringify({ type: "connected", message: "WebSocket接続OK" }));
 });
 
-fastify.post('/send-question', async (req, reply) => {
-  const body = await req.body;
-  const { question, options, answer } = body;
+// 静的ファイル（publicディレクトリを公開）
+fastify.register(fastifyStatic, {
+  root: path.join(__dirname, "public"),
+});
 
-  if (!question || !Array.isArray(options) || answer === undefined) {
-    return reply.status(400).send({ error: '不正なデータ' });
+// 管理者が問題を送信するルート
+fastify.post("/send-question", async (request, reply) => {
+  const { question, options, correctAnswer } = request.body;
+
+  currentQuestion = {
+    question,
+    options,
+    correctAnswer
+  };
+
+  answers = [];
+
+  const payload = {
+    type: "question",
+    question,
+    options
+  };
+
+  // クライアント全員に問題を送信
+  clients.forEach(client => {
+    if (client.socket.readyState === 1) {
+      client.socket.send(JSON.stringify(payload));
+    }
+  });
+
+  reply.send({ status: "sent" });
+});
+
+// 結果集計
+fastify.get("/results", async (request, reply) => {
+  if (!currentQuestion) {
+    return reply.send({ error: "問題が送信されていません。" });
   }
 
-  currentQuestion = question;
-  currentOptions = options;
-  correctAnswer = Number(answer);
-  answers = {};
+  const result = {};
 
-  console.log('📨 問題送信:', question);
+  for (const entry of answers) {
+    const { user, answer, time } = entry;
 
-  fastify.websocketServer.clients.forEach(client => {
-    if (client.readyState === 1) {
-      client.send(JSON.stringify({
-        type: 'question',
-        question: currentQuestion,
-        options: currentOptions
-      }));
+    if (!result[user]) {
+      result[user] = {
+        correctCount: 0,
+        totalTime: 0
+      };
     }
+
+    if (answer === currentQuestion.correctAnswer) {
+      result[user].correctCount += 1;
+      result[user].totalTime += time;
+    }
+  }
+
+  // ソート（正解数 → 合計時間）
+  const sorted = Object.entries(result).sort((a, b) => {
+    if (b[1].correctCount !== a[1].correctCount) {
+      return b[1].correctCount - a[1].correctCount;
+    }
+    return a[1].totalTime - b[1].totalTime;
   });
 
-  return { success: true };
+  reply.send({
+    question: currentQuestion.question,
+    correctAnswer: currentQuestion.options[currentQuestion.correctAnswer],
+    answers,
+    ranking: sorted
+  });
 });
 
-fastify.get('/results', async (req, reply) => {
-  const results = Object.entries(answers).map(([clientId, data]) => ({
-    clientId,
-    username: data.username,
-    answer: data.answer,
-    correct: data.correct,
-    timestamp: data.timestamp
-  }));
-
-  return results;
+// JSONボディのパース
+fastify.addContentTypeParser('application/json', { parseAs: 'string' }, function (req, body, done) {
+  try {
+    const json = JSON.parse(body);
+    done(null, json);
+  } catch (err) {
+    err.statusCode = 400;
+    done(err, undefined);
+  }
 });
 
-fastify.listen({ port: process.env.PORT || 3000, host: '0.0.0.0' }, err => {
+// サーバー起動
+const port = process.env.PORT || 3000;
+fastify.listen({ port, host: '0.0.0.0' }, (err, address) => {
   if (err) {
-    fastify.log.error(err);
+    console.error(err);
     process.exit(1);
   }
-  console.log('🚀 サーバー起動完了');
+  console.log(`🚀 サーバー起動中: ${address}`);
 });
+
