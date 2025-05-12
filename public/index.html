@@ -1,28 +1,13 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>クイズ解答者ページ</title>
-  <link rel="stylesheet" href="/style.css" />
-  <style>
-    li {
-      cursor: pointer;
-      padding: 10px;
-      border: 1px solid #ccc;
-      margin: 5px 0;
-      border-radius: 4px;
-    }
-    li:hover {
-      background-color: #f0f0f0;
-    }
-  </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>クイズ解答</title>
 </head>
 <body>
-  <div id="question-container">
-    <h2 id="question">問題を待っています...</h2>
-    <ul id="options"></ul>
-  </div>
+  <h2 id="question">問題を待っています...</h2>
+  <ul id="options"></ul>
 
   <script>
     let username = localStorage.getItem("username");
@@ -32,49 +17,48 @@
     }
 
     const protocol = location.protocol === "https:" ? "wss" : "ws";
-    const socketUrl = `${protocol}://all-seikanshasai.onrender.com/ws`;
-    const socket = new WebSocket(socketUrl);
+    const socket = new WebSocket(`${protocol}://${location.host}/ws`);
 
     socket.addEventListener("open", () => {
-      console.log("✅ サーバーと接続しました");
+      console.log("✅ 接続しました");
     });
 
-    socket.addEventListener("message", (event) => {
+    socket.addEventListener("message", event => {
       const data = JSON.parse(event.data);
 
-      if (data.type === "connected") {
-        console.log("🟢 接続確認:", data.message);
+      if (data.type === 'connected') {
+        console.log("🟢 サーバー応答:", data.message);
       }
 
       if (data.type === "question") {
         document.getElementById("question").textContent = data.question;
-        const optionsList = document.getElementById("options");
-        optionsList.innerHTML = "";
+        const options = document.getElementById("options");
+        options.innerHTML = "";
 
         data.options.forEach((option, index) => {
           const li = document.createElement("li");
           li.textContent = option;
-          li.addEventListener("click", () => {
-            const answerPayload = {
+          li.style.cursor = "pointer";
+          li.onclick = () => {
+            socket.send(JSON.stringify({
               type: "answer",
               user: username,
               answer: index,
               time: Date.now()
-            };
-            socket.send(JSON.stringify(answerPayload));
+            }));
             alert(`「${option}」を選択しました`);
-          });
-          optionsList.appendChild(li);
+          };
+          options.appendChild(li);
         });
       }
     });
 
-    socket.addEventListener("error", (e) => {
-      console.error("❌ WebSocket エラー:", e);
+    socket.addEventListener("error", e => {
+      console.error("❌ WebSocketエラー:", e);
     });
 
     socket.addEventListener("close", () => {
-      console.warn("⚠️ サーバーとの接続が閉じられました");
+      console.warn("⚠️ WebSocket接続が閉じられました");
     });
   </script>
 </body>
