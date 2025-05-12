@@ -44,20 +44,36 @@
     });
 
     // 問題送信ボタンの処理
-    document.getElementById("send-question-btn").addEventListener("click", () => {
-      const question = document.getElementById("question-input").value.trim();
-      const rawOptions = document.getElementById("options-input").value.split("\n");
-      const options = rawOptions.map(opt => opt.trim()).filter(opt => opt);
+document.getElementById("send-question-btn").addEventListener("click", async () => {
+  const question = document.getElementById("question-input").value.trim();
+  const rawOptions = document.getElementById("options-input").value.split("\n");
+  const options = rawOptions.map(opt => opt.trim()).filter(opt => opt);
+  const answerIndex = parseInt(document.getElementById("answer-input").value, 10);
 
-      if (!question || options.length === 0) {
-        alert("問題文と少なくとも1つの選択肢を入力してください。");
-        return;
-      }
+  if (!question || options.length === 0 || isNaN(answerIndex) || answerIndex < 0 || answerIndex >= options.length) {
+    alert("問題文、選択肢、正解番号を正しく入力してください。");
+    return;
+  }
 
-
-
-      alert("問題を送信しました！");
+  try {
+    const response = await fetch("/send-question", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ question, options, answer: answerIndex }),
     });
+
+    if (response.ok) {
+      alert("問題を送信しました！");
+    } else {
+      alert("送信に失敗しました。");
+    }
+  } catch (err) {
+    console.error("送信エラー:", err);
+    alert("送信中にエラーが発生しました。");
+  }
+});
 
     // 集計ボタンの処理（サーバーはまだ処理しないが送信は可能）
     document.getElementById("show-results-btn").addEventListener("click", () => {
