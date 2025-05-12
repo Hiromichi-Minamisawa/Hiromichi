@@ -34,7 +34,7 @@
 
     // WebSocket接続先を動的に切り替え
     const protocol = location.protocol === "https:" ? "wss" : "ws";
-    const socket = new WebSocket(`${protocol}://${location.host}/ws`);
+    const socket = new WebSocket(`wss://${location.host}/ws`);
 
     socket.addEventListener("open", () => {
       console.log("✅ サーバーと接続しました");
@@ -42,6 +42,11 @@
 
     socket.addEventListener("message", (event) => {
       const data = JSON.parse(event.data);
+      
+       if (data.type === 'connected') {
+      console.log('🟢 接続確認:', data.message);
+    }
+      
       if (data.type === "question") {
         document.getElementById("question").textContent = data.question;
         const optionsList = document.getElementById("options");
