@@ -54,11 +54,7 @@
         return;
       }
 
-      socket.send(JSON.stringify({
-        type: "question",
-        question,
-        options,
-      }));
+
 
       alert("問題を送信しました！");
     });
