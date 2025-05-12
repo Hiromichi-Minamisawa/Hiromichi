@@ -6,42 +6,67 @@
 </head>
 <body>
   <h1>クイズ参加画面</h1>
-  <div id="question">ここに問題が表示されます</div>
-  <input id="name" type="text" placeholder="名前を入力" />
-  <input id="answer" type="text" placeholder="解答を入力" />
-  <button id="submit">送信</button>
+  <div id="questionArea">
+    <p id="question">問題が出題されるまでお待ちください...</p>
+    <button onclick="submitAnswer(true)">〇</button>
+    <button onclick="submitAnswer(false)">✕</button>
+  </div>
+  <p id="status"></p>
 
   <script>
-    const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-    const socket = new WebSocket(`${protocol}://${location.host}/ws`);
+    const playerId = 'player_' + Math.random().toString(36).substr(2, 9);
+    const socket = new WebSocket('wss://' + location.host + '/ws');
+
+    let currentQuestion = '';
+    let questionStartTime = 0;
 
     socket.addEventListener('open', () => {
-      console.log('✅ WebSocket接続完了');
+      console.log('WebSocket接続成功');
     });
 
-    socket.addEventListener('message', (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'question') {
-        document.getElementById('question').textContent = data.question;
+    socket.addEventListener('message', event => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.question) {
+          currentQuestion = data.question;
+          questionStartTime = Date.now();
+          document.getElementById('question').textContent = `問題: ${data.question}`;
+          document.getElementById('status').textContent = '';
+        }
+      } catch (e) {
+        console.error('メッセージ解析エラー:', e);
       }
     });
 
-    document.getElementById('submit').addEventListener('click', () => {
-      const name = document.getElementById('name').value.trim();
-      const answer = document.getElementById('answer').value.trim();
-      if (!name || !answer) return alert('名前と解答を入力してください');
+    function submitAnswer(answer) {
+      if (!currentQuestion) {
+        document.getElementById('status').textContent = 'まだ問題が出題されていません。';
+        return;
+      }
 
-      const payload = {
-        type: 'answer',
-        name: name,
-        answer: answer,
-        correct: false, // 正誤判定は後で行う（ここでは仮で false）
-        time: 0 // 解答時間も後で実装予定
-      };
+      const time = (Date.now() - questionStartTime) / 1000;
 
-      socket.send(JSON.stringify(payload));
-      document.getElementById('answer').value = '';
-    });
+      fetch('/answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerId,
+          question: currentQuestion,
+          answer,
+          time
+        })
+      }).then(res => {
+        if (res.ok) {
+          document.getElementById('status').textContent = '解答を送信しました！';
+          currentQuestion = '';
+        } else {
+          document.getElementById('status').textContent = '送信に失敗しました';
+        }
+      }).catch(err => {
+        console.error(err);
+        document.getElementById('status').textContent = 'エラーが発生しました';
+      });
+    }
   </script>
 </body>
 </html>
