@@ -3,6 +3,11 @@ const fastify = require("fastify")();
 const fastifyStatic = require("fastify-static");
 const fastifyWebsocket = require("fastify-websocket");
 
+let currentQuestion = null;
+let currentOptions = [];
+let answers = {}; // 参加者の解答を記録（{ clientId: answerIndex }）
+
+
 // WebSocket対応
 fastify.register(fastifyWebsocket);
 
