@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>管理者ページ</title>
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/style.css" />
   <style>
     textarea {
       width: 100%;
@@ -24,9 +24,8 @@
     <h2>問題送信</h2>
     <textarea id="question-input" placeholder="問題を入力してください"></textarea>
     <textarea id="options-input" placeholder="選択肢を入力してください（改行で区切り）"></textarea>
-    <br>
+    <br />
     <input id="answer-input" type="number" min="0" placeholder="正解の選択肢番号 (例: 0)" />
-
     <button id="send-question-btn">問題を送信</button>
 
     <h2>結果集計</h2>
@@ -35,7 +34,6 @@
   </div>
 
   <script>
-    // WebSocketを動的に構築
     const protocol = location.protocol === "https:" ? "wss" : "ws";
     const socket = new WebSocket(`${protocol}://${location.host}/ws`);
 
@@ -43,63 +41,25 @@
       console.log("✅ サーバーと接続しました");
     });
 
-    // 問題送信ボタンの処理
-document.getElementById("send-question-btn").addEventListener("click", async () => {
-  const question = document.getElementById("question-input").value.trim();
-  const rawOptions = document.getElementById("options-input").value.split("\n");
-  const options = rawOptions.map(opt => opt.trim()).filter(opt => opt);
-  const answerIndex = parseInt(document.getElementById("answer-input").value, 10);
+    document.getElementById("send-question-btn").addEventListener("click", async () => {
+      const question = document.getElementById("question-input").value.trim();
+      const rawOptions = document.getElementById("options-input").value.split("\n");
+      const options = rawOptions.map(opt => opt.trim()).filter(opt => opt);
+      const answerIndex = parseInt(document.getElementById("answer-input").value, 10);
 
-  if (!question || options.length === 0 || isNaN(answerIndex) || answerIndex < 0 || answerIndex >= options.length) {
-    alert("問題文、選択肢、正解番号を正しく入力してください。");
-    return;
-  }
+      if (!question || options.length === 0 || isNaN(answerIndex) || answerIndex < 0 || answerIndex >= options.length) {
+        alert("問題文、選択肢、正解番号を正しく入力してください。");
+        return;
+      }
 
-  try {
-    const response = await fetch("/send-question", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ question, options, answer: answerIndex }),
-    });
+      try {
+        const response = await fetch("/send-question", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question, options, answer: answerIndex }),
+        });
 
-    if (response.ok) {
-      alert("問題を送信しました！");
-    } else {
-      alert("送信に失敗しました。");
-    }
-  } catch (err) {
-    console.error("送信エラー:", err);
-    alert("送信中にエラーが発生しました。");
-  }
-});
+        if (response.ok) {
+          alert("問題を送信しました！");
+        } else
 
-    // 集計ボタンの処理（サーバーはまだ処理しないが送信は可能）
-    document.getElementById("show-results-btn").addEventListener("click", () => {
-      // 結果表示用WebSocketに送る（別エンドポイントなら調整必要）
-      const resultSocket = new WebSocket(`${protocol}://${location.host}/ws/results`);
-      resultSocket.addEventListener("open", () => {
-        // 仮の結果送信（手動で送っている想定）
-        resultSocket.send(JSON.stringify({
-          type: "results",
-          results: [1, 3, 2, 5], // ←ダミーの投票数（後でサーバー側に自動化する）
-        }));
-      });
-
-      resultSocket.addEventListener("message", (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === "results") {
-          const resultsDiv = document.getElementById("results");
-          resultsDiv.innerHTML = "";
-          data.results.forEach((result, index) => {
-            const div = document.createElement("div");
-            div.textContent = `選択肢 ${index + 1}: ${result}票`;
-            resultsDiv.appendChild(div);
-          });
-        }
-      });
-    });
-  </script>
-</body>
-</html>
