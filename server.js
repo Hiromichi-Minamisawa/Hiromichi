@@ -61,7 +61,7 @@ fastify.post('/send-question', async (req, reply) => {
   // 全クライアントに問題を送信
   fastify.websocketServer.clients.forEach(client => {
     if (client.readyState === 1) {
-      client.send(JSON.stringify({ type: 'question', question }));
+      client.send(JSON.stringify({ type: 'question', question, options }));
     }
   });
 
