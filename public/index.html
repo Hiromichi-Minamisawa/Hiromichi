@@ -25,16 +25,15 @@
   </div>
 
   <script>
-    // 名前入力
     let username = localStorage.getItem("username");
     while (!username) {
       username = prompt("名前を入力してください:");
       if (username) localStorage.setItem("username", username);
     }
 
-    // WebSocket 接続
     const protocol = location.protocol === "https:" ? "wss" : "ws";
-    const socket = new WebSocket(`${protocol}://${location.host}/ws`);
+    const socketUrl = `${protocol}://all-seikanshasai.onrender.com/ws`;
+    const socket = new WebSocket(socketUrl);
 
     socket.addEventListener("open", () => {
       console.log("✅ サーバーと接続しました");
@@ -43,8 +42,8 @@
     socket.addEventListener("message", (event) => {
       const data = JSON.parse(event.data);
 
-      if (data.type === 'connected') {
-        console.log('🟢 接続確認:', data.message);
+      if (data.type === "connected") {
+        console.log("🟢 接続確認:", data.message);
       }
 
       if (data.type === "question") {
@@ -80,7 +79,4 @@
   </script>
 </body>
 </html>
-
-
-
 
