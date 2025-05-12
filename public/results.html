@@ -1,33 +1,79 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <title>集計結果</title>
+  <meta charset="UTF-8">
+  <title>解答集計画面</title>
+  <style>
+    table, th, td {
+      border: 1px solid black;
+      border-collapse: collapse;
+      padding: 8px;
+    }
+  </style>
 </head>
 <body>
-  <h1>集計結果</h1>
-  <table border="1">
+  <h1>解答集計画面</h1>
+  <table id="resultsTable">
     <thead>
-      <tr><th>名前</th><th>正解数</th><th>合計時間(ms)</th></tr>
+      <tr>
+        <th>参加者ID</th>
+        <th>正解数</th>
+        <th>合計解答時間（秒）</th>
+      </tr>
     </thead>
-    <tbody id="results"></tbody>
+    <tbody>
+      <!-- データがここに表示されます -->
+    </tbody>
   </table>
 
   <script>
-    async function loadResults() {
-      const res = await fetch("/answers");
-      const data = await res.json();
-      const tbody = document.getElementById("results");
-      tbody.innerHTML = "";
+    async function fetchAnswers() {
+      try {
+        const res = await fetch('/answers');
+        const answers = await res.json();
 
-      data.forEach(row => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${row.user}</td><td>${row.correct}</td><td>${row.totalTime}</td>`;
-        tbody.appendChild(tr);
-      });
+        const playerStats = {};
+
+        for (const answer of answers) {
+          const { playerId, correct, time } = answer;
+          if (!playerStats[playerId]) {
+            playerStats[playerId] = { correctCount: 0, totalTime: 0 };
+          }
+          if (correct) {
+            playerStats[playerId].correctCount += 1;
+            playerStats[playerId].totalTime += time;
+          }
+        }
+
+        // ソート：正解数降順、同数なら解答時間昇順
+        const sorted = Object.entries(playerStats).sort((a, b) => {
+          if (b[1].correctCount !== a[1].correctCount) {
+            return b[1].correctCount - a[1].correctCount;
+          }
+          return a[1].totalTime - b[1].totalTime;
+        });
+
+        const tbody = document.querySelector('#resultsTable tbody');
+        tbody.innerHTML = '';
+
+        for (const [playerId, stats] of sorted) {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${playerId}</td>
+            <td>${stats.correctCount}</td>
+            <td>${stats.totalTime.toFixed(2)}</td>
+          `;
+          tbody.appendChild(row);
+        }
+
+      } catch (err) {
+        console.error('集計取得エラー:', err);
+      }
     }
 
-    setInterval(loadResults, 2000);
+    // 5秒ごとに更新
+    setInterval(fetchAnswers, 5000);
+    fetchAnswers();
   </script>
 </body>
 </html>
