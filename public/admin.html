@@ -1,65 +1,41 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>管理者ページ</title>
-  <link rel="stylesheet" href="/style.css" />
-  <style>
-    textarea {
-      width: 100%;
-      height: 80px;
-      margin-bottom: 10px;
-    }
-    button {
-      margin-right: 10px;
-    }
-    #results div {
-      margin: 5px 0;
-    }
-  </style>
+  <meta charset="UTF-8">
+  <title>管理者画面</title>
 </head>
 <body>
-  <div id="admin-container">
-    <h2>問題送信</h2>
-    <textarea id="question-input" placeholder="問題を入力してください"></textarea>
-    <textarea id="options-input" placeholder="選択肢を入力してください（改行で区切り）"></textarea>
-    <br />
-    <input id="answer-input" type="number" min="0" placeholder="正解の選択肢番号 (例: 0)" />
-    <button id="send-question-btn">問題を送信</button>
-
-    <h2>結果集計</h2>
-    <button id="show-results-btn">結果を集計・表示</button>
-    <div id="results"></div>
-  </div>
+  <h2>問題送信</h2>
+  <textarea id="question" placeholder="問題文" rows="3" cols="50"></textarea><br>
+  <textarea id="options" placeholder="選択肢（改行区切り）" rows="5" cols="50"></textarea><br>
+  <input id="answer" type="number" min="0" placeholder="正解の選択肢番号 (例: 0)" /><br>
+  <button id="send">問題を送信</button>
 
   <script>
-    const protocol = location.protocol === "https:" ? "wss" : "ws";
-    const socket = new WebSocket(`${protocol}://${location.host}/ws`);
+    document.getElementById("send").addEventListener("click", async () => {
+      const question = document.getElementById("question").value.trim();
+      const rawOptions = document.getElementById("options").value.split("\n");
+      const options = rawOptions.map(o => o.trim()).filter(Boolean);
+      const answer = parseInt(document.getElementById("answer").value, 10);
 
-    socket.addEventListener("open", () => {
-      console.log("✅ サーバーと接続しました");
-    });
-
-    document.getElementById("send-question-btn").addEventListener("click", async () => {
-      const question = document.getElementById("question-input").value.trim();
-      const rawOptions = document.getElementById("options-input").value.split("\n");
-      const options = rawOptions.map(opt => opt.trim()).filter(opt => opt);
-      const answerIndex = parseInt(document.getElementById("answer-input").value, 10);
-
-      if (!question || options.length === 0 || isNaN(answerIndex) || answerIndex < 0 || answerIndex >= options.length) {
-        alert("問題文、選択肢、正解番号を正しく入力してください。");
+      if (!question || !options.length || isNaN(answer)) {
+        alert("全ての項目を正しく入力してください。");
         return;
       }
 
-      try {
-        const response = await fetch("/send-question", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question, options, answer: answerIndex }),
-        });
+      const res = await fetch("/send-question", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, options, answer })
+      });
 
-        if (response.ok) {
-          alert("問題を送信しました！");
-        } else
+      if (res.ok) {
+        alert("問題を送信しました！");
+      } else {
+        alert("送信に失敗しました。");
+      }
+    });
+  </script>
+</body>
+</html>
 
