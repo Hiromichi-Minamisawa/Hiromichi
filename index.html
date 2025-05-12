@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>クイズ解答者ページ</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    li {
+      cursor: pointer;
+      padding: 10px;
+      border: 1px solid #ccc;
+      margin: 5px 0;
+      border-radius: 4px;
+    }
+    li:hover {
+      background-color: #f0f0f0;
+    }
+  </style>
+</head>
+<body>
+  <div id="question-container">
+    <h2 id="question">問題を待っています...</h2>
+    <ul id="options"></ul>
+  </div>
+
+  <script>
+    // 名前入力（再読み込み時にも残せるようlocalStorageを利用可能）
+    let username = localStorage.getItem("username");
+    while (!username) {
+      username = prompt("名前を入力してください:");
+      if (username) localStorage.setItem("username", username);
+    }
+
+    // WebSocket接続先を動的に切り替え
+    const protocol = location.protocol === "https:" ? "wss" : "ws";
+    const socket = new WebSocket(`${protocol}://${location.host}/ws`);
+
+    socket.addEventListener("open", () => {
+      console.log("✅ サーバーと接続しました");
+    });
+
+    socket.addEventListener("message", (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === "question") {
+        document.getElementById("question").textContent = data.question;
+        const optionsList = document.getElementById("options");
+        optionsList.innerHTML = "";
+        data.options.forEach((option, index) => {
+          const li = document.createElement("li");
+          li.textContent = option;
+          li.addEventListener("click", () => {
+            const answerPayload = {
+              type: "answer",
+              user: username,
+              answer: index,
+              time: Date.now()
+            };
+            socket.send(JSON.stringify(answerPayload));
+            alert(`「${option}」を選択しました`);
+          });
+          optionsList.appendChild(li);
+        });
+      }
+    });
+
+    socket.addEventListener("error", (e) => {
+      console.error("❌ WebSocket エラー:", e);
+    });
+
+    socket.addEventListener("close", () => {
+      console.warn("⚠️ サーバーとの接続が閉じられました");
+    });
+  </script>
+</body>
+</html>
+
+
+
