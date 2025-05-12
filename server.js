@@ -1,6 +1,6 @@
 const path = require("path");
 const fastify = require("fastify")();
-const fastifyStatic = require("@fastify/static");
+const fastifyStatic = require("fastify-static");
 const fastifyWebsocket = require("fastify-websocket");
 
 // WebSocket対応
