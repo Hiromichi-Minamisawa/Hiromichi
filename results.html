@@ -3,31 +3,28 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>集計結果表示</title>
-  <link rel="stylesheet" href="/style.css" />
+  <title>集計画面</title>
+  <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <h2>現在の投票結果</h2>
+  <h2>リアルタイム解答集計</h2>
   <div id="results"></div>
 
   <script>
-    const socket = new WebSocket("wss://" + location.host + "/ws");
+    const socket = new WebSocket("wss://" + location.host + "/ws/results");
 
-    const voteCounts = {};
+    socket.addEventListener("open", () => {
+      console.log("✅ 管理画面 WebSocket 接続完了");
+    });
 
     socket.addEventListener("message", (event) => {
       const data = JSON.parse(event.data);
-
-      if (data.type === "answer") {
-        const answer = data.answer;
-        voteCounts[answer] = (voteCounts[answer] || 0) + 1;
-
+      if (data.type === "results") {
         const resultsDiv = document.getElementById("results");
         resultsDiv.innerHTML = "";
-
-        Object.entries(voteCounts).forEach(([optionIndex, count]) => {
+        data.results.forEach((count, index) => {
           const div = document.createElement("div");
-          div.textContent = `選択肢 ${parseInt(optionIndex) + 1}: ${count}票`;
+          div.textContent = `選択肢 ${index + 1}: ${count}票`;
           resultsDiv.appendChild(div);
         });
       }
