@@ -1,26 +1,34 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <title>管理画面</title>
+  <meta charset="UTF-8">
+  <title>問題送信画面</title>
 </head>
 <body>
-  <h1>管理画面</h1>
-  <input type="text" id="question" placeholder="問題を入力" />
-  <button onclick="sendQuestion()">送信</button>
+  <h1>問題送信画面</h1>
+  <input id="questionInput" type="text" placeholder="出題する問題を入力" />
+  <button id="sendQuestion">問題を送信</button>
 
   <script>
-    function sendQuestion() {
-      const question = document.getElementById("question").value;
-      fetch("/send-question", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question })
-      }).then(() => {
-        alert("問題を送信しました");
-      });
-    }
+    const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+    const socket = new WebSocket(`${protocol}://${location.host}/ws`);
+
+    socket.addEventListener('open', () => {
+      console.log('✅ WebSocket接続完了（admin）');
+    });
+
+    document.getElementById('sendQuestion').addEventListener('click', () => {
+      const question = document.getElementById('questionInput').value.trim();
+      if (!question) return alert('問題を入力してください');
+
+      const payload = {
+        type: 'question',
+        question: question
+      };
+
+      socket.send(JSON.stringify(payload));
+      document.getElementById('questionInput').value = '';
+    });
   </script>
 </body>
 </html>
-
