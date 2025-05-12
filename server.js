@@ -1,4 +1,6 @@
-const fastify = require("fastify")({ logger: false });
+const fastify = require("fastify")({
+  logger: false,
+});
 const path = require("path");
 const fs = require("fs");
 const websocketPlugin = require("fastify-websocket");
@@ -9,36 +11,39 @@ fastify.register(fastifyStatic, {
   root: path.join(__dirname, "public"),
 });
 
-const clients = new Set();
-const resultsClients = new Set();
-let currentOptions = [];
-let answers = [];
+const clients = new Set(); // 解答者
+const resultsClients = new Set(); // 管理者（集計画面）
+
+let currentResults = []; // 現在の問題の選択肢ごとの票数
 
 fastify.get("/", async (request, reply) => {
-  const html = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
+  const filePath = path.join(__dirname, "index.html");
+  const html = fs.readFileSync(filePath, "utf8");
   reply.type("text/html").send(html);
 });
 
 fastify.get("/admin", async (request, reply) => {
-  const html = fs.readFileSync(path.join(__dirname, "admin.html"), "utf8");
+  const filePath = path.join(__dirname, "admin.html");
+  const html = fs.readFileSync(filePath, "utf8");
   reply.type("text/html").send(html);
 });
 
 fastify.get("/results", async (request, reply) => {
-  const html = fs.readFileSync(path.join(__dirname, "results.html"), "utf8");
+  const filePath = path.join(__dirname, "results.html");
+  const html = fs.readFileSync(filePath, "utf8");
   reply.type("text/html").send(html);
 });
 
+// 解答者用WebSocket
 fastify.get("/ws", { websocket: true }, (connection, req) => {
   clients.add(connection.socket);
-
   connection.socket.on("message", (message) => {
     try {
       const data = JSON.parse(message);
 
       if (data.type === "question") {
-        currentOptions = data.options || [];
-        answers = []; // 前の問題の解答をリセット
+        // 新しい問題：集計リセット
+        currentResults = new Array(data.options.length).fill(0);
         const payload = JSON.stringify({
           type: "question",
           question: data.question,
@@ -49,14 +54,28 @@ fastify.get("/ws", { websocket: true }, (connection, req) => {
             client.send(payload);
           }
         });
-      } else if (data.type === "answer") {
-        const answerIndex = parseInt(data.answer);
-        if (!isNaN(answerIndex) && answerIndex >= 0 && answerIndex < currentOptions.length) {
-          answers.push(answerIndex);
+      }
+
+      if (data.type === "answer") {
+        const answerIndex = data.answer;
+        if (typeof currentResults[answerIndex] === "number") {
+          currentResults[answerIndex] += 1;
+
+          // 管理者に最新結果を送信
+          const resultsPayload = JSON.stringify({
+            type: "results",
+            results: currentResults,
+          });
+          resultsClients.forEach((client) => {
+            if (client.readyState === 1) {
+              client.send(resultsPayload);
+            }
+          });
         }
       }
+
     } catch (err) {
-      console.error("❌ メッセージ解析エラー:", err);
+      console.error("❌ メッセージ解析失敗:", err);
     }
   });
 
@@ -65,36 +84,16 @@ fastify.get("/ws", { websocket: true }, (connection, req) => {
   });
 });
 
+// 管理者向け集計表示
 fastify.get("/ws/results", { websocket: true }, (connection, req) => {
   resultsClients.add(connection.socket);
 
-  connection.socket.on("message", (message) => {
-    try {
-      const data = JSON.parse(message);
-      if (data.type === "results") {
-        // 集計処理
-        const counts = Array(currentOptions.length).fill(0);
-        answers.forEach((index) => {
-          if (typeof counts[index] !== "undefined") {
-            counts[index]++;
-          }
-        });
-
-        const payload = JSON.stringify({
-          type: "results",
-          results: counts,
-        });
-
-        resultsClients.forEach((client) => {
-          if (client.readyState === 1) {
-            client.send(payload);
-          }
-        });
-      }
-    } catch (err) {
-      console.error("❌ 結果送信エラー:", err);
-    }
+  // 初回接続時に現在の集計状況を送る
+  const initPayload = JSON.stringify({
+    type: "results",
+    results: currentResults,
   });
+  connection.socket.send(initPayload);
 
   connection.socket.on("close", () => {
     resultsClients.delete(connection.socket);
@@ -107,5 +106,5 @@ fastify.listen({ port: PORT, host: "0.0.0.0" }, (err, address) => {
     console.error(err);
     process.exit(1);
   }
-  console.log(`🚀 サーバーが起動しました: ${address}`);
+  console.log(`🚀 サーバー起動中: ${address}`);
 });
