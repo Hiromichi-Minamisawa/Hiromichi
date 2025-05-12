@@ -1,63 +1,37 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>クイズ結果</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-    }
-    #results {
-      font-size: 20px;
-      margin-bottom: 20px;
-    }
-  </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>集計結果表示</title>
+  <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <h1>クイズ結果</h1>
-  <div id="results">結果を待っています...</div>
+  <h2>現在の投票結果</h2>
+  <div id="results"></div>
 
   <script>
-    // WebSocketの接続設定
-    const socket = new WebSocket("wss://all-seikanshasai.glitch.me/ws/results");
+    const socket = new WebSocket("wss://" + location.host + "/ws");
 
-    socket.onopen = () => {
-      console.log('WebSocket接続が確立しました');
-    };
+    const voteCounts = {};
 
-    socket.onmessage = (event) => {
+    socket.addEventListener("message", (event) => {
       const data = JSON.parse(event.data);
-      if (data.type === 'results') {
-        console.log('結果が届きました:', data.results);
-        // 結果を画面に表示
-        displayResults(data.results);
-      }
-    };
 
-    socket.onerror = (error) => {
-      console.error('WebSocketエラー:', error);
-    };
+      if (data.type === "answer") {
+        const answer = data.answer;
+        voteCounts[answer] = (voteCounts[answer] || 0) + 1;
 
-    socket.onclose = () => {
-      console.log('WebSocket接続が閉じられました');
-    };
+        const resultsDiv = document.getElementById("results");
+        resultsDiv.innerHTML = "";
 
-    function displayResults(results) {
-      // 結果を画面に表示する処理
-      const resultsContainer = document.getElementById('results');
-      resultsContainer.innerHTML = ''; // 既存の結果をクリア
-
-      if (results && results.length > 0) {
-        results.forEach((result) => {
-          const resultElement = document.createElement('p');
-          resultElement.innerText = `選択肢: ${result.option}, 投票数: ${result.votes}`;
-          resultsContainer.appendChild(resultElement);
+        Object.entries(voteCounts).forEach(([optionIndex, count]) => {
+          const div = document.createElement("div");
+          div.textContent = `選択肢 ${parseInt(optionIndex) + 1}: ${count}票`;
+          resultsDiv.appendChild(div);
         });
-      } else {
-        resultsContainer.innerText = 'まだ投票結果がありません。';
       }
-    }
+    });
   </script>
 </body>
 </html>
