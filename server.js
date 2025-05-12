@@ -1,32 +1,31 @@
-const fastify = require("fastify")({ logger: true });
+const fastify = require("fastify")();
 const path = require("path");
 const fastifyStatic = require("@fastify/static");
 const fastifyWebsocket = require("@fastify/websocket");
 
-const clients = new Set();
-const answers = [];
-
 fastify.register(fastifyStatic, {
   root: path.join(__dirname, "public"),
-  prefix: "/",
 });
 
 fastify.register(fastifyWebsocket);
 
-fastify.get("/ws", { websocket: true }, (connection, req) => {
-  clients.add(connection);
+const clients = new Set();
+const answers = [];
 
+// WebSocket接続
+fastify.get("/ws", { websocket: true }, (connection, req) => {
+  const ws = connection.socket;
+  clients.add(ws);
   console.log("🟢 クライアント接続");
 
-  connection.socket.on("message", (message) => {
+  ws.on("message", (message) => {
     try {
       const data = JSON.parse(message);
-
       if (data.type === "answer") {
         answers.push({
           user: data.user,
           answer: data.answer,
-          time: data.time,
+          time: data.time
         });
       }
     } catch (e) {
@@ -34,36 +33,45 @@ fastify.get("/ws", { websocket: true }, (connection, req) => {
     }
   });
 
-  connection.socket.on("close", () => {
-    clients.delete(connection);
+  ws.on("close", () => {
+    clients.delete(ws);
+    console.log("⚠️ クライアント切断");
   });
 });
 
-fastify.post("/send-question", async (request, reply) => {
-  const { question } = request.body;
+// クイズ送信
+fastify.post("/send-question", async (req, reply) => {
+  const { question } = req.body;
   console.log("📨 問題送信:", question);
 
-  try {
-    clients.forEach((client) => {
-      client.socket.send(JSON.stringify({ type: "question", question }));
-    });
-  } catch (err) {
-    console.error("送信エラー:", err);
-  }
+  clients.forEach((ws) => {
+    if (ws.readyState === 1) {
+      try {
+        ws.send(JSON.stringify({ type: "question", question }));
+      } catch (err) {
+        console.error("送信エラー:", err);
+      }
+    }
+  });
 
   reply.send({ status: "ok" });
 });
 
-fastify.get("/answers", async (request, reply) => {
+// 解答一覧取得
+fastify.get("/answers", async (req, reply) => {
   reply.send(answers);
 });
 
-const PORT = process.env.PORT || 10000;
-
-fastify.listen({ port: PORT, host: "0.0.0.0" }, (err, address) => {
-  if (err) {
-    fastify.log.error(err);
+// サーバー起動
+const start = async () => {
+  try {
+    await fastify.listen({ port: process.env.PORT || 10000, host: "0.0.0.0" });
+    console.log(`🚀 サーバー起動: http://0.0.0.0:${fastify.server.address().port}`);
+  } catch (err) {
+    console.error(err);
     process.exit(1);
   }
-  console.log(`🚀 サーバー起動: ${address}`);
-});
+};
+
+start();
+
