@@ -1,65 +1,34 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>クイズ解答</title>
+  <meta charset="UTF-8" />
+  <title>クイズ参加画面</title>
 </head>
 <body>
-  <h2 id="question">問題を待っています...</h2>
-  <ul id="options"></ul>
+  <h1>クイズ参加画面</h1>
+  <div id="question">問題を待っています...</div>
+  <input type="text" id="answer" placeholder="答えを入力" />
+  <button onclick="sendAnswer()">送信</button>
 
   <script>
-    let username = localStorage.getItem("username");
-    while (!username) {
-      username = prompt("名前を入力してください:");
-      if (username) localStorage.setItem("username", username);
-    }
+    const ws = new WebSocket(`wss://${location.host}/ws`);
+    let currentQuestionTime = null;
 
-    const protocol = location.protocol === "https:" ? "wss" : "ws";
-    const socket = new WebSocket(`${protocol}://${location.host}/ws`);
-
-    socket.addEventListener("open", () => {
-      console.log("✅ 接続しました");
-    });
-
-    socket.addEventListener("message", event => {
+    ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-
-      if (data.type === 'connected') {
-        console.log("🟢 サーバー応答:", data.message);
-      }
-
       if (data.type === "question") {
         document.getElementById("question").textContent = data.question;
-        const options = document.getElementById("options");
-        options.innerHTML = "";
-
-        data.options.forEach((option, index) => {
-          const li = document.createElement("li");
-          li.textContent = option;
-          li.style.cursor = "pointer";
-          li.onclick = () => {
-            socket.send(JSON.stringify({
-              type: "answer",
-              user: username,
-              answer: index,
-              time: Date.now()
-            }));
-            alert(`「${option}」を選択しました`);
-          };
-          options.appendChild(li);
-        });
+        currentQuestionTime = Date.now();
       }
-    });
+    };
 
-    socket.addEventListener("error", e => {
-      console.error("❌ WebSocketエラー:", e);
-    });
+    function sendAnswer() {
+      const answer = document.getElementById("answer").value;
+      const time = Date.now() - currentQuestionTime;
+      const user = prompt("あなたの名前を入力してください");
 
-    socket.addEventListener("close", () => {
-      console.warn("⚠️ WebSocket接続が閉じられました");
-    });
+      ws.send(JSON.stringify({ type: "answer", user, answer, time }));
+    }
   </script>
 </body>
 </html>
