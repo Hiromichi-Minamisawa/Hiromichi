@@ -1,24 +1,28 @@
-const fastify = require("fastify")();
 const path = require("path");
+const fastify = require("fastify")({ logger: true });
 const fastifyStatic = require("@fastify/static");
 const fastifyWebsocket = require("@fastify/websocket");
 
+const PORT = process.env.PORT || 10000;
+
+let clients = new Set();
+let answers = [];
+
+// 静的ファイルの提供
 fastify.register(fastifyStatic, {
   root: path.join(__dirname, "public"),
+  prefix: "/",
 });
 
+// WebSocket プラグイン登録
 fastify.register(fastifyWebsocket);
 
-const clients = new Set();
-const answers = [];
-
-// WebSocket接続
+// WebSocket接続エンドポイント
 fastify.get("/ws", { websocket: true }, (connection, req) => {
-  const ws = connection.socket;
-  clients.add(ws);
+  clients.add(connection.socket);
   console.log("🟢 クライアント接続");
 
-  ws.on("message", (message) => {
+  connection.socket.on("message", (message) => {
     try {
       const data = JSON.parse(message);
       if (data.type === "answer") {
@@ -27,51 +31,45 @@ fastify.get("/ws", { websocket: true }, (connection, req) => {
           answer: data.answer,
           time: data.time
         });
+        console.log(`📥 回答受信: ${data.user} → ${data.answer} (${data.time}ms)`);
       }
-    } catch (e) {
-      console.error("❌ メッセージ解析エラー:", e);
+    } catch (err) {
+      console.error("❌ メッセージ解析エラー:", err);
     }
   });
 
-  ws.on("close", () => {
-    clients.delete(ws);
-    console.log("⚠️ クライアント切断");
+  connection.socket.on("close", () => {
+    clients.delete(connection.socket);
+    console.log("🔌 クライアント切断");
   });
 });
 
-// クイズ送信
+// 問題を全クライアントに送信
 fastify.post("/send-question", async (req, reply) => {
   const { question } = req.body;
   console.log("📨 問題送信:", question);
 
-  clients.forEach((ws) => {
-    if (ws.readyState === 1) {
-      try {
-        ws.send(JSON.stringify({ type: "question", question }));
-      } catch (err) {
-        console.error("送信エラー:", err);
-      }
+  clients.forEach(client => {
+    try {
+      client.send(JSON.stringify({ type: "question", question }));
+    } catch (e) {
+      console.error("送信エラー:", e);
     }
   });
 
   reply.send({ status: "ok" });
 });
 
-// 解答一覧取得
+// 集計された回答を返す（管理者画面用）
 fastify.get("/answers", async (req, reply) => {
   reply.send(answers);
 });
 
-// サーバー起動
-const start = async () => {
-  try {
-    await fastify.listen({ port: process.env.PORT || 10000, host: "0.0.0.0" });
-    console.log(`🚀 サーバー起動: http://0.0.0.0:${fastify.server.address().port}`);
-  } catch (err) {
-    console.error(err);
+// サーバ起動
+fastify.listen({ port: PORT, host: "0.0.0.0" }, (err, address) => {
+  if (err) {
+    fastify.log.error(err);
     process.exit(1);
   }
-};
-
-start();
-
+  console.log(`🚀 サーバー起動: ${address}`);
+});
