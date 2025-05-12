@@ -17,6 +17,14 @@ let correctAnswer = null;
 fastify.get('/ws', { websocket: true }, (connection, req) => {
   const clientId = req.headers['sec-websocket-key']; // クライアント識別子として使用
 
+  console.log(`クライアント接続: ${clientId}`);
+
+  // ✅ 接続成功メッセージを送信（これが重要）
+  connection.socket.send(JSON.stringify({
+    type: 'connected',
+    message: 'サーバーと接続されました'
+  }));
+  
   connection.socket.on('message', message => {
     try {
       const data = JSON.parse(message.toString());
@@ -35,6 +43,10 @@ fastify.get('/ws', { websocket: true }, (connection, req) => {
     } catch (err) {
       console.error('受信エラー:', err);
     }
+  });
+    // ✅ 切断時のログ出力
+  connection.socket.on('close', () => {
+    console.log(`クライアント切断: ${clientId}`);
   });
 });
 
