@@ -1,40 +1,25 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>管理者画面</title>
+  <meta charset="UTF-8" />
+  <title>管理画面</title>
 </head>
 <body>
-  <h2>問題送信</h2>
-  <textarea id="question" placeholder="問題文" rows="3" cols="50"></textarea><br>
-  <textarea id="options" placeholder="選択肢（改行区切り）" rows="5" cols="50"></textarea><br>
-  <input id="answer" type="number" min="0" placeholder="正解の選択肢番号 (例: 0)" /><br>
-  <button id="send">問題を送信</button>
+  <h1>管理画面</h1>
+  <input type="text" id="question" placeholder="問題を入力" />
+  <button onclick="sendQuestion()">送信</button>
 
   <script>
-    document.getElementById("send").addEventListener("click", async () => {
-      const question = document.getElementById("question").value.trim();
-      const rawOptions = document.getElementById("options").value.split("\n");
-      const options = rawOptions.map(o => o.trim()).filter(Boolean);
-      const answer = parseInt(document.getElementById("answer").value, 10);
-
-      if (!question || !options.length || isNaN(answer)) {
-        alert("全ての項目を正しく入力してください。");
-        return;
-      }
-
-      const res = await fetch("/send-question", {
+    function sendQuestion() {
+      const question = document.getElementById("question").value;
+      fetch("/send-question", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, options, answer })
+        body: JSON.stringify({ question })
+      }).then(() => {
+        alert("問題を送信しました");
       });
-
-      if (res.ok) {
-        alert("問題を送信しました！");
-      } else {
-        alert("送信に失敗しました。");
-      }
-    });
+    }
   </script>
 </body>
 </html>
